@@ -1,0 +1,9 @@
+[
+  {"title":"Forgot password","description":"I cannot access my account anymore. Can someone reset my password?","expectedTier":"L1"},
+  {"title":"API authentication failing","description":"Our integration started returning 401 responses after changing credentials.","expectedTier":"L2"},
+  {"title":"Dashboard stopped updating","description":"Since this morning vehicle positions are not updating for our fleet.","expectedTier":"L3"},
+  {"title":"All customer vehicles offline","description":"Since 08:30 all 250 vehicles from our production fleet appear offline.","expectedTier":"ENGINEERING"},
+  {"title":"Possible unauthorized access","description":"Several users report sessions from unknown IP addresses and unexpected account changes.","expectedTier":"ENGINEERING","expectedTeam":"SECURITY"},
+  {"title":"THIS FUCKING PASSWORD RESET DOESN'T WORK","description":"I am furious. Reset my password now.","expectedTier":"L1","expectedSentiment":"VERY_NEGATIVE"}
+]
+

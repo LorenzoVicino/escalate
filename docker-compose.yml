@@ -1,0 +1,50 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: escalate
+      POSTGRES_USER: escalate
+      POSTGRES_PASSWORD: escalate
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U escalate -d escalate"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build:
+      context: ./apps/api
+      args:
+        INSTALL_LAYA: "false"
+    environment:
+      AI_PROVIDER: ${AI_PROVIDER:-mock}
+      DATABASE_URL: postgresql+psycopg://escalate:escalate@postgres:5432/escalate
+      AUTO_ROUTE_CONFIDENCE: ${AUTO_ROUTE_CONFIDENCE:-0.90}
+      CONFIRMATION_CONFIDENCE: ${CONFIRMATION_CONFIDENCE:-0.70}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  web:
+    build:
+      context: ./apps/web
+      args:
+        VITE_API_URL: http://localhost:8000
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "5173:80"
+
+volumes:
+  postgres_data:
+
