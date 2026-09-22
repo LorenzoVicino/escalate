@@ -31,6 +31,20 @@ class TicketRepository:
         )
         return self._session.scalar(statement)
 
+    def get_by_external(self, source: str, external_id: str) -> TicketRecord | None:
+        statement = (
+            select(TicketRecord)
+            .where(
+                TicketRecord.source == source,
+                TicketRecord.external_id == external_id,
+            )
+            .options(
+                selectinload(TicketRecord.analyses),
+                selectinload(TicketRecord.routing_decisions),
+            )
+        )
+        return self._session.scalar(statement)
+
     def list(self) -> list[TicketRecord]:
         statement = select(TicketRecord).order_by(TicketRecord.created_at.desc())
         return list(self._session.scalars(statement))
@@ -40,4 +54,3 @@ class TicketRepository:
 
     def rollback(self) -> None:
         self._session.rollback()
-

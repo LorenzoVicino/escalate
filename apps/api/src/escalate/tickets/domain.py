@@ -5,6 +5,7 @@ class TicketSource(StrEnum):
     WEB = "WEB"
     EMAIL = "EMAIL"
     API = "API"
+    HUBSPOT = "HUBSPOT"
     JIRA = "JIRA"
     GITHUB = "GITHUB"
     SLACK = "SLACK"
@@ -36,4 +37,3 @@ class Team(StrEnum):
     MOBILE = "MOBILE"
     PLATFORM = "PLATFORM"
     UNKNOWN = "UNKNOWN"
-

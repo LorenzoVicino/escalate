@@ -76,6 +76,20 @@ class TicketService:
         )
         return self._result(ticket, analysis, routing)
 
+    async def create_if_missing(self, data: TicketCreate) -> tuple[TicketResult, bool]:
+        if data.external_id is not None:
+            existing = self._repository.get_by_external(data.source.value, data.external_id)
+            if existing is not None:
+                return (
+                    self._result(
+                        existing,
+                        self._analysis_from_record(existing.analyses[-1]),
+                        self._routing_from_record(existing.routing_decisions[-1]),
+                    ),
+                    False,
+                )
+        return await self.create(data), True
+
     def get(self, ticket_id: str) -> TicketResult:
         ticket = self._repository.get(ticket_id)
         if ticket is None or not ticket.analyses or not ticket.routing_decisions:

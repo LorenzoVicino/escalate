@@ -11,6 +11,8 @@ from escalate.analysis.providers.mock import MockDecisionModel
 from escalate.common.logging import RequestContextMiddleware, configure_logging
 from escalate.config import Settings, get_settings
 from escalate.db.session import engine
+from escalate.integrations.hubspot.client import HubSpotClient
+from escalate.integrations.hubspot.router import router as hubspot_router
 from escalate.tickets.router import router as tickets_router
 
 
@@ -29,7 +31,26 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         app.state.settings = app_settings
         app.state.decision_model = build_provider(app_settings.ai_provider)
-        yield
+        token = (
+            app_settings.hubspot_access_token.get_secret_value()
+            if app_settings.hubspot_access_token is not None
+            else ""
+        )
+        app.state.hubspot_client = (
+            HubSpotClient(
+                token,
+                base_url=app_settings.hubspot_base_url,
+                tickets_path=app_settings.hubspot_tickets_path,
+                timeout_seconds=app_settings.hubspot_timeout_seconds,
+            )
+            if token
+            else None
+        )
+        try:
+            yield
+        finally:
+            if app.state.hubspot_client is not None:
+                await app.state.hubspot_client.close()
 
     configure_logging()
     app = FastAPI(
@@ -47,6 +68,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_headers=["*"],
     )
     app.include_router(tickets_router)
+    app.include_router(hubspot_router)
 
     @app.get("/health", tags=["operations"])
     def health() -> dict[str, str]:
@@ -58,4 +80,3 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
 
 app = create_app()
-

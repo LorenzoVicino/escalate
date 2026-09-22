@@ -34,6 +34,7 @@ Available endpoints:
 | `POST` | `/api/v1/tickets` | Create, analyze, route, and return a ticket |
 | `GET` | `/api/v1/tickets` | List persisted tickets |
 | `GET` | `/api/v1/tickets/{id}` | Return a ticket with analysis and routing evidence |
+| `POST` | `/api/v1/integrations/hubspot/sync` | Import and route tickets from one HubSpot account |
 | `GET` | `/health` | Verify API and database health |
 
 The React dashboard creates tickets, shows the live triage queue, and renders the original report, normalized signals, recommendation, confidence mode, and deterministic reasons.
@@ -124,6 +125,26 @@ AI_PROVIDER=laya uvicorn escalate.main:app --reload
 
 Laya is an external dependency (`laya==0.3.5`); its source is not copied into this repository. The first real-provider startup downloads and preloads model checkpoints. Docker builds intentionally omit that large dependency in mock mode; build the API with `INSTALL_LAYA=true` when real inference is required.
 
+## HubSpot ticket ingestion
+
+Escalate can import tickets from one HubSpot account using a Private App token. HubSpot remains the source system; imported records use `source=HUBSPOT` and the HubSpot record ID as `externalId`. A database constraint on `(source, external_id)` makes repeated syncs idempotent.
+
+Create a HubSpot Private App with ticket read access, then set the token only in your local `.env`:
+
+```text
+HUBSPOT_ACCESS_TOKEN=pat-...
+```
+
+Run a bounded sync:
+
+```bash
+curl -X POST "http://localhost:8000/api/v1/integrations/hubspot/sync?max_pages=10"
+```
+
+The adapter requests only configured properties. Defaults map `subject` to title and `content` to description. Set `HUBSPOT_CUSTOMER_NAME_PROPERTY` when the account stores a customer label directly on tickets; otherwise Escalate uses a neutral fallback. Company/contact association resolution can be added later without leaking HubSpot concepts into the ticket domain. The token is represented as a secret setting and is never included in logs or API errors.
+
+This first integration is intentionally read-only. A production webhook receiver and optional write-back of routing fields are separate changes because they require signature validation, operator authorization, and retry policy.
+
 ## Development checks
 
 Backend (Python 3.11+):
@@ -158,12 +179,13 @@ No performance or accuracy result is claimed yet. The [benchmark methodology](be
 
 ## Roadmap
 
-1. Add recommendation acceptance, override workflows, and a separate feedback relation.
-2. Derive analytics and correction patterns only from persisted facts.
-3. Add a versioned evaluation dataset and measured Laya calibration runs.
-4. Add background analysis only when synchronous inference becomes an operational constraint.
-5. Consider an LLM second opinion only for low-confidence cases, never as the default path.
-6. Extract inference only if GPU isolation, independent scaling, or model release cadence demands it.
+1. Add a signed HubSpot webhook receiver and durable ingestion inbox.
+2. Add recommendation acceptance, override workflows, and a separate feedback relation.
+3. Derive analytics and correction patterns only from persisted facts.
+4. Add a versioned evaluation dataset and measured Laya calibration runs.
+5. Add background analysis when webhook volume makes synchronous inference an operational constraint.
+6. Consider an LLM second opinion only for low-confidence cases, never as the default path.
+7. Extract inference only if GPU isolation, independent scaling, or model release cadence demands it.
 
 AWS evolution may use CloudFront/S3, ECS/Fargate, RDS, SQS, and optional Bedrock fallback, but local product quality and the safe decision workflow come first.
 

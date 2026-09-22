@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from sqlalchemy import JSON, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import JSON, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from escalate.db.base import Base
@@ -13,6 +13,9 @@ def now_utc() -> datetime:
 
 class TicketRecord(Base):
     __tablename__ = "tickets"
+    __table_args__ = (
+        UniqueConstraint("source", "external_id", name="uq_tickets_source_external_id"),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
     external_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
@@ -80,4 +83,3 @@ class RoutingDecisionRecord(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
 
     ticket: Mapped[TicketRecord] = relationship(back_populates="routing_decisions")
-

@@ -1,0 +1,2 @@
+"""External ticket source adapters."""
+
