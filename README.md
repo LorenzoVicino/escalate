@@ -56,12 +56,16 @@ confidence mode and deterministic reasons. Light and dark themes are both suppor
 
 ```mermaid
 flowchart LR
+    HubSpot[(HubSpot)] --> Poller[Background poller]
+    Poller --> Ingest[Sync + enrichment]
+    Ingest --> Analysis[Analysis module]
     Web[React + TypeScript] --> API[FastAPI]
     API --> DB[(PostgreSQL)]
-    API --> Analysis[Analysis module]
+    API --> Analysis
     Analysis --> Laya[Laya Router]
     Analysis --> Routing[Deterministic routing]
     Routing --> DB
+    Ingest --> DB
 ```
 
 ```mermaid
@@ -125,7 +129,14 @@ python -m pip install -e ".[dev,laya]"
 AI_PROVIDER=laya uvicorn escalate.main:app --reload
 ```
 
-Laya is an external dependency (`laya==0.3.5`); its source is not copied into this repository. The first real-provider startup downloads and preloads model checkpoints. Docker builds intentionally omit that large dependency in mock mode; build the API with `INSTALL_LAYA=true` when real inference is required.
+Laya is an external dependency (`laya==0.3.5`); its source is not copied into this repository. Docker builds intentionally omit that large dependency in mock mode; build the API with `INSTALL_LAYA=true` when real inference is required.
+
+Two operational costs are worth knowing before enabling it. The first startup downloads and
+preloads three checkpoints from Hugging Face, which takes roughly five minutes — the compose
+healthcheck allows for this with a `start_period`, and setting `HF_TOKEN` avoids anonymous
+rate limits. On CPU, inference then costs roughly 20–80 seconds per ticket, so a first import
+of a large pipeline is slow; already-imported tickets are skipped cheaply, and the poller
+subtracts elapsed time from its interval so cycles never stack.
 
 ## HubSpot ticket ingestion
 
@@ -152,15 +163,42 @@ minimum; without the others the corresponding fields simply stay empty:
 After changing scopes, click **Commit changes** in the Private App editor — the token keeps
 working but new scopes do not apply until committed.
 
-Run a bounded sync:
+The adapter requests only configured properties. Defaults map `subject` to title and `content` to description. Set `HUBSPOT_CUSTOMER_NAME_PROPERTY` when the account stores a customer label directly on tickets; otherwise Escalate uses a neutral fallback. The token is represented as a secret setting and is never included in logs or API errors.
 
-```bash
-curl -X POST "http://localhost:8000/api/v1/integrations/hubspot/sync?max_pages=10"
+Tickets are pulled newest-first. This is explicit rather than incidental: HubSpot's search API
+returns oldest-first by default, which on a pipeline of any size fills the queue with years-old
+tickets the poller can never advance past. Each ticket also stores the date it was raised in
+HubSpot, so the queue sorts by ticket age rather than import order.
+
+### Background polling
+
+A poller imports on an interval so the queue stays current without manual syncs:
+
+```text
+HUBSPOT_POLL_INTERVAL_SECONDS=300   # seconds between cycles
+HUBSPOT_POLL_MAX_PAGES=5            # pages per cycle, at HUBSPOT_SYNC_PAGE_SIZE each
 ```
 
-The adapter requests only configured properties. Defaults map `subject` to title and `content` to description. Set `HUBSPOT_CUSTOMER_NAME_PROPERTY` when the account stores a customer label directly on tickets; otherwise Escalate uses a neutral fallback. Company/contact association resolution can be added later without leaking HubSpot concepts into the ticket domain. The token is represented as a secret setting and is never included in logs or API errors.
+It runs once at startup and then on the interval, measuring elapsed time so a slow cycle
+delays rather than overlaps the next one. The dashboard refreshes independently and announces
+new arrivals.
 
-This first integration is intentionally read-only. A production webhook receiver and optional write-back of routing fields are separate changes because they require signature validation, operator authorization, and retry policy.
+### Enrichment
+
+For each newly imported ticket Escalate resolves the owner, the customer's email, and the
+engagement timeline (notes, emails, calls, meetings, tasks). These are flattened into a
+bounded plain-text digest — HTML stripped, oldest-first, capped by message count and
+character budget via `ANALYSIS_CONTEXT_*` settings — and passed to the decision model with
+the ticket, so the conversation informs the label.
+
+Enrichment is best-effort by design: a missing scope or a failing call yields empty fields
+rather than a failed sync. Owner names are resolved from a cached directory that includes
+archived owners, because HubSpot's per-id owner endpoint returns 404 for deactivated users
+who nonetheless own plenty of tickets.
+
+This integration is read-only. A signed webhook receiver and optional write-back of routing
+fields are separate changes because they require signature validation, operator
+authorization, and retry policy.
 
 ## Development checks
 
@@ -184,11 +222,24 @@ npm test
 npm run build
 ```
 
-CI runs both sets plus the PostgreSQL Alembic migration. Ordinary tests never load the real Laya model.
+CI runs both sets plus the PostgreSQL Alembic migration on every push and pull request.
+Ordinary tests never load the real Laya model.
+
+## Releases
+
+Tagging `v*` publishes container images to the GitHub Container Registry:
+
+```bash
+docker pull ghcr.io/lorenzovicino/escalate-api:latest
+docker pull ghcr.io/lorenzovicino/escalate-web:latest
+```
+
+Published images default to the mock provider so they stay small; build with
+`INSTALL_LAYA=true` for real inference.
 
 ## Persistence and observability
 
-Important fields are relational and queryable across separate `tickets`, `ticket_analyses`, and `routing_decisions` tables. Raw provider metadata has a constrained JSON escape hatch. Structured logs include request ID, ticket ID, provider, inference duration, routing result, confidence, and mode. The API echoes `x-request-id` for correlation.
+Important fields are relational and queryable across separate `tickets`, `ticket_analyses`, `routing_decisions`, and `ticket_messages` tables. Raw provider metadata has a constrained JSON escape hatch. Structured logs include request ID, ticket ID, provider, inference duration, routing result, confidence, and mode. The API echoes `x-request-id` for correlation.
 
 ## Benchmarks
 
@@ -196,7 +247,7 @@ No performance or accuracy result is claimed yet. The [benchmark methodology](be
 
 ## Roadmap
 
-1. Add a signed HubSpot webhook receiver and durable ingestion inbox.
+1. Replace interval polling with a signed HubSpot webhook receiver and a durable ingestion inbox.
 2. Add recommendation acceptance, override workflows, and a separate feedback relation.
 3. Derive analytics and correction patterns only from persisted facts.
 4. Add a versioned evaluation dataset and measured Laya calibration runs.
