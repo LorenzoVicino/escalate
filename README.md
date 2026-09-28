@@ -48,9 +48,19 @@ intake form. It identifies the operator against the HubSpot user list, filters t
 and renders the original report, conversation thread, normalized signals, recommendation,
 confidence mode and deterministic reasons. Light and dark themes are both supported.
 
-## Product screenshot
+## Product screenshots
 
-![Escalate ticket detail showing probabilistic signals and deterministic routing](docs/escalate-ticket-detail.png)
+Ticket detail — the original request, the resolved owner and customer, the recommended
+destination with its confidence mode and reasons, the decision signals, and the HubSpot
+conversation thread that fed the analysis:
+
+![Escalate ticket detail showing probabilistic signals, deterministic routing and the conversation thread](docs/escalate-ticket-detail.png)
+
+Triage queue in dark mode, with filters and aggregate stats:
+
+![Escalate triage queue in dark mode showing filters, aggregate stats and the ticket table](docs/escalate-triage-queue-dark.png)
+
+Both screenshots use synthetic tickets, not real customer data.
 
 ## Architecture
 
