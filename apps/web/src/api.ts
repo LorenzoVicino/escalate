@@ -1,4 +1,11 @@
-import type { TicketInput, TicketResult, TicketSummary } from './types'
+import type {
+  Health,
+  Owner,
+  TicketFilters,
+  TicketPage,
+  TicketResult,
+  TicketStats,
+} from './types'
 
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
 
@@ -13,12 +20,24 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>
 }
 
-export const api = {
-  listTickets: () => request<TicketSummary[]>('/api/v1/tickets'),
-  getTicket: (id: string) => request<TicketResult>(`/api/v1/tickets/${id}`),
-  createTicket: (ticket: TicketInput) => request<TicketResult>('/api/v1/tickets', {
-    method: 'POST',
-    body: JSON.stringify(ticket),
-  }),
+function query(filters: TicketFilters = {}, extra: Record<string, string | number> = {}) {
+  const params = new URLSearchParams()
+  for (const [key, value] of Object.entries({ ...extra, ...filters })) {
+    if (value !== undefined && value !== null && value !== '') params.set(key, String(value))
+  }
+  const search = params.toString()
+  return search ? `?${search}` : ''
 }
 
+export const api = {
+  listTickets: (page = 1, pageSize = 10, filters: TicketFilters = {}) =>
+    request<TicketPage>(`/api/v1/tickets${query(filters, { page, pageSize })}`),
+  ticketStats: (filters: TicketFilters = {}) =>
+    request<TicketStats>(`/api/v1/tickets/stats${query(filters)}`),
+  getTicket: (id: string) => request<TicketResult>(`/api/v1/tickets/${id}`),
+  listOwners: () => request<Owner[]>('/api/v1/integrations/hubspot/owners'),
+  syncHubspot: () => request<unknown>('/api/v1/integrations/hubspot/sync?max_pages=1', {
+    method: 'POST',
+  }),
+  health: () => request<Health>('/health'),
+}

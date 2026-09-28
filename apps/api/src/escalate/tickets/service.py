@@ -2,12 +2,25 @@ import structlog
 
 from escalate.analysis.models import TicketAnalysis, TicketAnalysisInput
 from escalate.analysis.service import AnalysisService
-from escalate.db.models.ticket import RoutingDecisionRecord, TicketAnalysisRecord, TicketRecord
+from escalate.db.models.ticket import (
+    RoutingDecisionRecord,
+    TicketAnalysisRecord,
+    TicketMessageRecord,
+    TicketRecord,
+)
 from escalate.routing.engine import RoutingDecisionEngine
 from escalate.routing.models import RoutingDecision, RoutingMode
 from escalate.tickets.domain import TicketStatus
 from escalate.tickets.repository import TicketRepository
-from escalate.tickets.schemas import TicketCreate, TicketResult, TicketSummary
+from escalate.tickets.schemas import (
+    TicketContextUpdate,
+    TicketCreate,
+    TicketFilters,
+    TicketPage,
+    TicketResult,
+    TicketStats,
+    TicketSummary,
+)
 
 logger = structlog.get_logger()
 
@@ -35,6 +48,7 @@ class TicketService:
             customer_name=data.customer_name,
             source=data.source.value,
             status=TicketStatus.OPEN.value,
+            external_created_at=data.external_created_at,
         )
         try:
             self._repository.add_ticket(ticket)
@@ -43,6 +57,7 @@ class TicketService:
                     title=ticket.title,
                     description=ticket.description,
                     customer_name=ticket.customer_name,
+                    context=data.analysis_context or "",
                 )
             )
             analysis_record = self._analysis_record(ticket.id, analysis)
@@ -100,8 +115,67 @@ class TicketService:
             self._routing_from_record(ticket.routing_decisions[-1]),
         )
 
-    def list(self) -> list[TicketSummary]:
-        return [self._summary(ticket) for ticket in self._repository.list()]
+    def exists_external(self, source: str, external_id: str) -> bool:
+        return self._repository.exists_external(source, external_id)
+
+    def list(
+        self, *, page: int = 1, page_size: int = 10, filters: TicketFilters | None = None
+    ) -> TicketPage:
+        tickets, total = self._repository.list(
+            page=page, page_size=page_size, filters=filters
+        )
+        return TicketPage(
+            items=[self._summary(ticket) for ticket in tickets],
+            total=total,
+            page=page,
+            page_size=page_size,
+        )
+
+    def stats(self, filters: TicketFilters | None = None) -> TicketStats:
+        by_status = self._repository.counts_by(TicketRecord.status, filters)
+        by_tier = self._repository.counts_by(TicketRecord.assigned_tier, filters)
+        by_team = self._repository.counts_by(TicketRecord.assigned_team, filters)
+        return TicketStats(
+            total=sum(by_status.values()),
+            open=sum(
+                count
+                for status, count in by_status.items()
+                if status != TicketStatus.RESOLVED.value
+            ),
+            needs_review=by_status.get(TicketStatus.WAITING_CONFIRMATION.value, 0)
+            + by_status.get(TicketStatus.MANUAL_TRIAGE.value, 0),
+            auto_routed=by_status.get(TicketStatus.ROUTED.value, 0),
+            by_status=by_status,
+            by_tier=by_tier,
+            by_team=by_team,
+        )
+
+    def set_context(self, ticket_id: str, context: TicketContextUpdate) -> None:
+        ticket = self._repository.get(ticket_id)
+        if ticket is None:
+            raise TicketNotFoundError(ticket_id)
+        ticket.owner_id = context.owner_id
+        ticket.owner_name = context.owner_name
+        ticket.owner_email = context.owner_email
+        ticket.contact_email = context.contact_email
+        try:
+            for message in context.messages:
+                self._repository.add_message(
+                    TicketMessageRecord(
+                        ticket_id=ticket_id,
+                        external_id=message.external_id,
+                        channel=message.channel,
+                        direction=message.direction,
+                        author=message.author,
+                        subject=message.subject,
+                        body=message.body,
+                        occurred_at=message.occurred_at,
+                    )
+                )
+            self._repository.commit()
+        except Exception:
+            self._repository.rollback()
+            raise
 
     @staticmethod
     def _apply_routing(ticket: TicketRecord, routing: RoutingDecision) -> None:
@@ -185,6 +259,7 @@ class TicketService:
             "assignedTier": ticket.assigned_tier,
             "assignedTeam": ticket.assigned_team,
             "createdAt": ticket.created_at,
+            "raisedAt": ticket.external_created_at or ticket.created_at,
         })
 
     @classmethod
@@ -197,6 +272,20 @@ class TicketService:
             "externalId": ticket.external_id,
             "description": ticket.description,
             "updatedAt": ticket.updated_at,
+            "ownerName": ticket.owner_name,
+            "ownerEmail": ticket.owner_email,
+            "contactEmail": ticket.contact_email,
+            "messages": [
+                {
+                    "channel": message.channel,
+                    "direction": message.direction,
+                    "author": message.author,
+                    "subject": message.subject,
+                    "body": message.body,
+                    "occurredAt": message.occurred_at,
+                }
+                for message in ticket.messages
+            ],
             "analysis": analysis.model_dump(by_alias=True),
             "routing": routing.model_dump(by_alias=True),
         })

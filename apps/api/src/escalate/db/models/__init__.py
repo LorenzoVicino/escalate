@@ -1,4 +1,14 @@
-from escalate.db.models.ticket import RoutingDecisionRecord, TicketAnalysisRecord, TicketRecord
+from escalate.db.models.ticket import (
+    RoutingDecisionRecord,
+    TicketAnalysisRecord,
+    TicketMessageRecord,
+    TicketRecord,
+)
 
-__all__ = ["RoutingDecisionRecord", "TicketAnalysisRecord", "TicketRecord"]
+__all__ = [
+    "RoutingDecisionRecord",
+    "TicketAnalysisRecord",
+    "TicketMessageRecord",
+    "TicketRecord",
+]
 

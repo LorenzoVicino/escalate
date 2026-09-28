@@ -14,9 +14,18 @@ class HubSpotTicketMapper:
     def requested_properties(self) -> list[str]:
         return [
             property_name
-            for property_name in (self._title, self._description, self._customer)
+            for property_name in (
+                self._title,
+                self._description,
+                self._customer,
+                "hubspot_owner_id",
+            )
             if property_name
         ]
+
+    @staticmethod
+    def owner_id(ticket: HubSpotTicket) -> str | None:
+        return ticket.properties.get("hubspot_owner_id")
 
     def to_ticket_create(self, ticket: HubSpotTicket) -> TicketCreate:
         properties = ticket.properties
@@ -32,4 +41,5 @@ class HubSpotTicketMapper:
             )
             or "HubSpot customer",
             source=TicketSource.HUBSPOT,
+            external_created_at=ticket.created_at,
         )

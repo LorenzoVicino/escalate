@@ -1,20 +1,39 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import App from './App'
-import type { TicketResult } from './types'
+import { mockApi } from './test/mockApi'
+import type { TicketResult, TicketSummary } from './types'
 
-const ticket: TicketResult = {
+const summary: TicketSummary = {
   id: '12ab34cd-0000-0000-0000-000000000000',
-  externalId: null,
   title: 'All customer vehicles offline',
-  description: 'Since 08:30 all 250 vehicles are offline.',
   customerName: 'Acme Mobility',
-  source: 'WEB',
+  source: 'HUBSPOT',
   status: 'ROUTED',
   assignedTier: 'ENGINEERING',
   assignedTeam: 'PLATFORM',
   createdAt: '2026-09-22T08:30:00Z',
+  raisedAt: '2026-09-22T08:30:00Z',
+}
+
+const ticket: TicketResult = {
+  ...summary,
+  externalId: 'hs-101',
+  description: 'Since 08:30 all 250 vehicles are offline.',
   updatedAt: '2026-09-22T08:30:01Z',
+  ownerName: 'Anna Rossi',
+  ownerEmail: 'anna@example.com',
+  contactEmail: 'ops@acme.io',
+  messages: [
+    {
+      channel: 'EMAIL',
+      direction: 'INCOMING_EMAIL',
+      author: 'ops@acme.io',
+      subject: 'Fleet is dark',
+      body: '<p>Nothing is reporting since 08:30.</p>',
+      occurredAt: '2026-09-22T08:31:00Z',
+    },
+  ],
   analysis: {
     category: { value: 'PRODUCTION_INCIDENT', confidence: .95 },
     sentiment: { value: 'NEGATIVE', confidence: .8 },
@@ -24,7 +43,7 @@ const ticket: TicketResult = {
     requiresDeveloper: { value: .91, confidence: .91 },
     securityRisk: { value: .05, confidence: .96 },
     suggestedTeam: { value: 'PLATFORM', confidence: .9 },
-    provider: 'mock', model: 'deterministic-demo-v1', processingTimeMs: 1,
+    provider: 'laya', model: 'convaiinnovations/laya', processingTimeMs: 2952,
   },
   routing: {
     supportTier: 'ENGINEERING', team: 'PLATFORM', confidence: .92,
@@ -32,25 +51,70 @@ const ticket: TicketResult = {
   },
 }
 
-afterEach(() => { vi.restoreAllMocks() })
+/** The operator modal blocks the queue until someone is identified. */
+function identify() {
+  window.localStorage.setItem('escalate.operator', JSON.stringify({ id: '1', name: 'Lorenzo Vicino', email: 'lv@example.com' }))
+}
 
-test('creates a ticket and displays its explainable routing detail', async () => {
-  const fetchMock = vi.spyOn(globalThis, 'fetch')
-  fetchMock.mockResolvedValueOnce(new Response(JSON.stringify([]), { status: 200 }))
-  fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(ticket), { status: 201 }))
+const oneTicket = { items: [summary], total: 1, page: 1, pageSize: 10 }
+
+test('opens a synced ticket and shows its explainable routing detail', async () => {
+  identify()
+  mockApi({ tickets: oneTicket, ticket })
   const user = userEvent.setup()
   render(<App />)
 
-  await screen.findByText('The queue is clear')
-  await user.click(screen.getByRole('button', { name: /new ticket/i }))
-  await user.type(screen.getByLabelText('Customer'), 'Acme Mobility')
-  await user.type(screen.getByLabelText('Title'), ticket.title)
-  await user.type(screen.getByLabelText('Description'), ticket.description)
-  await user.click(screen.getByRole('button', { name: /create & analyze/i }))
+  await user.click(await screen.findByRole('button', { name: /all customer vehicles offline/i }))
 
   await screen.findByText(/recommended destination/i)
   expect(screen.getByText('Customer impact')).toBeInTheDocument()
   expect(screen.getByText('92% confidence')).toBeInTheDocument()
   expect(screen.getByText('Large customer impact detected')).toBeInTheDocument()
-  await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
+})
+
+test('renders the HubSpot conversation thread on the ticket detail', async () => {
+  identify()
+  mockApi({ tickets: oneTicket, ticket })
+  const user = userEvent.setup()
+  render(<App />)
+
+  await user.click(await screen.findByRole('button', { name: /all customer vehicles offline/i }))
+
+  expect(await screen.findByText('Conversation thread')).toBeInTheDocument()
+  expect(screen.getByText('Fleet is dark')).toBeInTheDocument()
+  expect(screen.getByText('Email')).toBeInTheDocument()
+  expect(screen.getByText('Incoming')).toBeInTheDocument()
+  expect(screen.getByText('Nothing is reporting since 08:30.')).toBeInTheDocument()
+})
+
+test('the queue is read-only — tickets come from HubSpot, not an intake form', async () => {
+  identify()
+  mockApi({ tickets: oneTicket, ticket })
+  render(<App />)
+
+  await screen.findByText('Recent tickets')
+  expect(screen.queryByRole('button', { name: /new ticket/i })).not.toBeInTheDocument()
+  expect(screen.getByRole('button', { name: /sync hubspot now/i })).toBeInTheDocument()
+})
+
+test('asks who the operator is on first load and remembers the choice', async () => {
+  mockApi({ owners: [{ id: '42', email: 'anna@example.com', firstName: 'Anna', lastName: 'Rossi' }] })
+  const user = userEvent.setup()
+  render(<App />)
+
+  expect(await screen.findByRole('dialog')).toBeInTheDocument()
+  await user.selectOptions(await screen.findByLabelText(/hubspot user/i), '42')
+  await user.click(screen.getByRole('button', { name: /continue/i }))
+
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  expect(await screen.findByText('Anna Rossi')).toBeInTheDocument()
+  expect(JSON.parse(window.localStorage.getItem('escalate.operator')!).name).toBe('Anna Rossi')
+})
+
+test('shows the real provider reported by the API, not a hardcoded label', async () => {
+  identify()
+  mockApi({ health: { status: 'healthy', provider: 'laya' } })
+  render(<App />)
+
+  expect(await screen.findByText('laya provider online')).toBeInTheDocument()
 })

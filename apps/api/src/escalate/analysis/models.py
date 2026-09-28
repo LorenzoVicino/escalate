@@ -7,7 +7,9 @@ from escalate.tickets.domain import Team
 
 
 class Category(StrEnum):
-    ACCOUNT = "ACCOUNT"
+    DEVICE_CONNECTIVITY = "DEVICE_CONNECTIVITY"
+    PROVISIONING = "PROVISIONING"
+    ACCOUNT_CONTRACT = "ACCOUNT_CONTRACT"
     CONFIGURATION = "CONFIGURATION"
     HOW_TO = "HOW_TO"
     BUG = "BUG"
@@ -15,7 +17,7 @@ class Category(StrEnum):
     PRODUCTION_INCIDENT = "PRODUCTION_INCIDENT"
     PERFORMANCE = "PERFORMANCE"
     SECURITY = "SECURITY"
-    DATA_ISSUE = "DATA_ISSUE"
+    DATA_QUALITY = "DATA_QUALITY"
     BILLING = "BILLING"
     FEATURE_REQUEST = "FEATURE_REQUEST"
     OTHER = "OTHER"
@@ -45,6 +47,7 @@ class TicketAnalysisInput(BaseModel):
     title: str
     description: str
     customer_name: str
+    context: str = ""
 
 
 class TicketAnalysis(BaseModel):

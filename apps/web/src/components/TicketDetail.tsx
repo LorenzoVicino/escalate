@@ -1,4 +1,5 @@
 import type { TicketResult } from '../types'
+import { Timeline } from './detail/Timeline'
 import { ArrowIcon } from './Icons'
 
 const label = (value: string) => value.replaceAll('_', ' ').toLowerCase().replace(/^./, c => c.toUpperCase())
@@ -12,17 +13,21 @@ function Meter({ name, value }: { name: string; value: number }) {
 }
 
 export function TicketDetail({ ticket, onBack }: { ticket: TicketResult; onBack: () => void }) {
-  const { analysis, routing } = ticket
+  const { analysis, routing, messages } = ticket
   return <main className="content detail-content">
     <button className="back-link" onClick={onBack}><ArrowIcon /> Back to triage queue</button>
     <div className="detail-heading">
-      <div><span className="ticket-id">TICKET · {ticket.id.slice(0, 8).toUpperCase()}</span><h1>{ticket.title}</h1><p>{ticket.customerName} · {new Date(ticket.createdAt).toLocaleString()}</p></div>
+      <div><span className="ticket-id">TICKET · {ticket.id.slice(0, 8).toUpperCase()}</span><h1>{ticket.title}</h1><p>{ticket.customerName} · raised {new Date(ticket.raisedAt).toLocaleString()}</p></div>
       <span className={`status status-${ticket.status.toLowerCase()}`}>{label(ticket.status)}</span>
     </div>
     <div className="detail-grid">
       <section className="panel original-ticket">
         <div className="panel-title"><div><span className="eyebrow">ORIGINAL REQUEST</span><h2>Customer report</h2></div><span className="source-pill">{ticket.source}</span></div>
         <p>{ticket.description}</p>
+        {(ticket.ownerName || ticket.contactEmail) && <div className="ticket-parties">
+          {ticket.ownerName && <div><span>Owner</span><strong>{ticket.ownerName}</strong>{ticket.ownerEmail && <small>{ticket.ownerEmail}</small>}</div>}
+          {ticket.contactEmail && <div><span>Customer email</span><strong>{ticket.contactEmail}</strong></div>}
+        </div>}
       </section>
       <section className="panel recommendation">
         <span className="eyebrow light">RECOMMENDED DESTINATION</span>
@@ -43,6 +48,6 @@ export function TicketDetail({ ticket, onBack }: { ticket: TicketResult; onBack:
         <p className="analysis-note">Sentiment is displayed as an independent signal and does not directly determine technical severity.</p>
       </section>
     </div>
+    {messages.length > 0 && <Timeline messages={messages} />}
   </main>
 }
-

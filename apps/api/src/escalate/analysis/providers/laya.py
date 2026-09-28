@@ -32,6 +32,8 @@ class LayaDecisionModel:
             "body": ticket.description,
             "customer": ticket.customer_name,
         }
+        if ticket.context:
+            state["context"] = ticket.context
         started = perf_counter()
         raw = await asyncio.to_thread(self._router.predict, state, laya_questions())
         elapsed_ms = round((perf_counter() - started) * 1000)

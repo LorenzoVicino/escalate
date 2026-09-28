@@ -1,5 +1,6 @@
+import asyncio
 from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -12,6 +13,7 @@ from escalate.common.logging import RequestContextMiddleware, configure_logging
 from escalate.config import Settings, get_settings
 from escalate.db.session import engine
 from escalate.integrations.hubspot.client import HubSpotClient
+from escalate.integrations.hubspot.poller import poll_hubspot_forever
 from escalate.integrations.hubspot.router import router as hubspot_router
 from escalate.tickets.router import router as tickets_router
 
@@ -46,9 +48,20 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             if token
             else None
         )
+        poll_task: asyncio.Task[None] | None = None
+        if app.state.hubspot_client is not None:
+            poll_task = asyncio.create_task(
+                poll_hubspot_forever(
+                    app.state.hubspot_client, app.state.decision_model, app_settings
+                )
+            )
         try:
             yield
         finally:
+            if poll_task is not None:
+                poll_task.cancel()
+                with suppress(asyncio.CancelledError):
+                    await poll_task
             if app.state.hubspot_client is not None:
                 await app.state.hubspot_client.close()
 

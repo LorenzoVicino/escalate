@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
 
 from escalate.analysis.providers.base import DecisionModel
@@ -10,7 +10,13 @@ from escalate.db.session import get_db
 from escalate.routing.engine import RoutingDecisionEngine
 from escalate.routing.rules import RoutingThresholds
 from escalate.tickets.repository import TicketRepository
-from escalate.tickets.schemas import TicketCreate, TicketResult, TicketSummary
+from escalate.tickets.schemas import (
+    TicketCreate,
+    TicketFilters,
+    TicketPage,
+    TicketResult,
+    TicketStats,
+)
 from escalate.tickets.service import TicketNotFoundError, TicketService
 
 router = APIRouter(prefix="/api/v1/tickets", tags=["tickets"])
@@ -35,11 +41,33 @@ async def create_ticket(
     return await service.create(data)
 
 
-@router.get("", response_model=list[TicketSummary])
+def _filters(
+    owner_id: Annotated[str | None, Query(alias="ownerId")] = None,
+    status_filter: Annotated[str | None, Query(alias="status")] = None,
+    team: Annotated[str | None, Query()] = None,
+    tier: Annotated[str | None, Query()] = None,
+    q: Annotated[str | None, Query(max_length=200)] = None,
+) -> TicketFilters:
+    return TicketFilters(owner_id=owner_id, status=status_filter, team=team, tier=tier, q=q)
+
+
+@router.get("", response_model=TicketPage)
 def list_tickets(
     service: Annotated[TicketService, Depends(get_ticket_service)],
-) -> list[TicketSummary]:
-    return service.list()
+    filters: Annotated[TicketFilters, Depends(_filters)],
+    page: Annotated[int, Query(ge=1)] = 1,
+    page_size: Annotated[int, Query(ge=1, le=100, alias="pageSize")] = 10,
+) -> TicketPage:
+    return service.list(page=page, page_size=page_size, filters=filters)
+
+
+# Declared before /{ticket_id} so "stats" is not matched as a ticket id.
+@router.get("/stats", response_model=TicketStats)
+def ticket_stats(
+    service: Annotated[TicketService, Depends(get_ticket_service)],
+    filters: Annotated[TicketFilters, Depends(_filters)],
+) -> TicketStats:
+    return service.stats(filters)
 
 
 @router.get("/{ticket_id}", response_model=TicketResult)

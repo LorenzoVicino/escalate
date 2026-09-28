@@ -17,7 +17,7 @@ services:
     build:
       context: ./apps/api
       args:
-        INSTALL_LAYA: "false"
+        INSTALL_LAYA: ${INSTALL_LAYA:-false}
     environment:
       AI_PROVIDER: ${AI_PROVIDER:-mock}
       DATABASE_URL: postgresql+psycopg://escalate:escalate@postgres:5432/escalate
@@ -31,6 +31,9 @@ services:
       HUBSPOT_TITLE_PROPERTY: ${HUBSPOT_TITLE_PROPERTY:-subject}
       HUBSPOT_DESCRIPTION_PROPERTY: ${HUBSPOT_DESCRIPTION_PROPERTY:-content}
       HUBSPOT_CUSTOMER_NAME_PROPERTY: ${HUBSPOT_CUSTOMER_NAME_PROPERTY:-}
+      HUBSPOT_PIPELINE_ID: ${HUBSPOT_PIPELINE_ID:-}
+      HUBSPOT_POLL_INTERVAL_SECONDS: ${HUBSPOT_POLL_INTERVAL_SECONDS:-300}
+      HUBSPOT_POLL_MAX_PAGES: ${HUBSPOT_POLL_MAX_PAGES:-5}
     depends_on:
       postgres:
         condition: service_healthy
@@ -41,6 +44,9 @@ services:
       interval: 10s
       timeout: 3s
       retries: 10
+      # Laya downloads and preloads checkpoints on boot (~5 min); without this the
+      # container is marked unhealthy long before it has had a chance to start.
+      start_period: 420s
 
   web:
     build:

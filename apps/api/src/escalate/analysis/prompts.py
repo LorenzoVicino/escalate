@@ -6,11 +6,32 @@ def laya_questions() -> dict[str, dict[str, Any]]:
         "category": {
             "type": "choice",
             "instructions": "Classify the primary support ticket category.",
-            "criteria": {value: value.replace("_", " ").lower() for value in [
-                "ACCOUNT", "CONFIGURATION", "HOW_TO", "BUG", "INTEGRATION",
-                "PRODUCTION_INCIDENT", "PERFORMANCE", "SECURITY", "DATA_ISSUE",
-                "BILLING", "FEATURE_REQUEST", "OTHER",
-            ]},
+            "criteria": {
+                "DEVICE_CONNECTIVITY": (
+                    "telematic device (centralina/periferica) not communicating, "
+                    "offline, or not transmitting data"
+                ),
+                "PROVISIONING": (
+                    "device preparation, installation, collaudo, or contract activation"
+                ),
+                "ACCOUNT_CONTRACT": (
+                    "customer account, contract, tenant, or option/privilege access"
+                ),
+                "CONFIGURATION": "configuration",
+                "HOW_TO": "how to",
+                "BUG": "bug",
+                "INTEGRATION": "cross-system integration (HubSpot, TeamSystem, GTSAT, Middleware)",
+                "PRODUCTION_INCIDENT": "production incident",
+                "PERFORMANCE": "performance",
+                "SECURITY": "security",
+                "DATA_QUALITY": (
+                    "incorrect or inconsistent telemetry/report data "
+                    "(GPS, AVL, fuel consumption, routes)"
+                ),
+                "BILLING": "billing",
+                "FEATURE_REQUEST": "feature request",
+                "OTHER": "other",
+            },
         },
         "sentiment": {
             "type": "choice",
@@ -56,18 +77,18 @@ def laya_questions() -> dict[str, dict[str, Any]]:
             "type": "choice",
             "instructions": "Which technical team best matches the issue?",
             "criteria": {
-                value: value.lower()
-                for value in [
-                    "SUPPORT",
-                    "BACKEND",
-                    "FRONTEND",
-                    "DEVOPS",
-                    "DATABASE",
-                    "SECURITY",
-                    "MOBILE",
-                    "PLATFORM",
-                    "UNKNOWN",
-                ]
+                "SUPPORT": "support",
+                "BACKEND": "backend",
+                "FRONTEND": "frontend",
+                "DEVOPS": "devops",
+                "DATABASE": "database",
+                "SECURITY": "security",
+                "MOBILE": "mobile",
+                "PLATFORM": "platform",
+                "MIDDLEWARE": "middleware (cross-system identity, orders, catalog orchestration)",
+                "GTSAT": "GTSAT (telematic device catalog, provisioning, and webservice)",
+                "INGESTION": "telemetry ingestion (GPS/AVL data pipeline)",
+                "UNKNOWN": "unknown",
             },
         },
     }

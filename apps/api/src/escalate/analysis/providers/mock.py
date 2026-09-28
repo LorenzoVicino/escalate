@@ -16,7 +16,7 @@ class MockDecisionModel:
 
     async def analyze(self, ticket: TicketAnalysisInput) -> TicketAnalysis:
         started = perf_counter()
-        text = f"{ticket.title} {ticket.description}".lower()
+        text = f"{ticket.title} {ticket.description} {ticket.context}".lower()
 
         category, team, complexity, developer = self._technical_signals(text)
         urgency, impact = self._severity_signals(text)
@@ -56,11 +56,19 @@ class MockDecisionModel:
 
     def _technical_signals(self, text: str) -> tuple[Category, Team, float, float]:
         if self._contains(text, "password", "reset", "login"):
-            return Category.ACCOUNT, Team.SUPPORT, 0.12, 0.05
+            return Category.ACCOUNT_CONTRACT, Team.SUPPORT, 0.12, 0.05
         if self._contains(text, "401", "api", "integration", "credential"):
-            return Category.INTEGRATION, Team.SUPPORT, 0.48, 0.28
+            return Category.INTEGRATION, Team.MIDDLEWARE, 0.48, 0.28
+        if self._contains(
+            text, "centralina", "periferica", "non comunica", "non trasmette", "non risponde"
+        ):
+            return Category.DEVICE_CONNECTIVITY, Team.GTSAT, 0.58, 0.42
+        if self._contains(text, "collaudo", "installazione", "attivazione", "provisioning"):
+            return Category.PROVISIONING, Team.GTSAT, 0.52, 0.35
         if self._contains(text, "duplicate", "data inconsistency", "transactions"):
-            return Category.DATA_ISSUE, Team.DATABASE, 0.78, 0.84
+            return Category.DATA_QUALITY, Team.DATABASE, 0.78, 0.84
+        if self._contains(text, "consumo", "avl", "percorsi", "km", "carburante"):
+            return Category.DATA_QUALITY, Team.INGESTION, 0.62, 0.48
         if self._contains(text, "dashboard", "not updating", "stopped updating"):
             return Category.BUG, Team.BACKEND, 0.74, 0.69
         if self._contains(text, "offline", "outage", "production"):

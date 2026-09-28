@@ -22,22 +22,31 @@ Escalate puts a typed probabilistic model behind a deterministic decision bounda
 The repository currently implements one complete path rather than a collection of disconnected screens:
 
 ```text
-Create ticket → persist ticket → analyze → persist signals
-              → deterministic routing → persist decision
-              → confidence gate → return and visualize result
+Import from HubSpot → fetch conversation context → analyze (context included)
+                    → persist signals → deterministic routing → persist decision
+                    → confidence gate → return and visualize result
 ```
+
+Context is fetched *before* analysis, so the notes, emails, calls and meetings attached
+to a ticket in HubSpot inform the labels rather than arriving too late to matter.
 
 Available endpoints:
 
 | Method | Endpoint | Purpose |
 |---|---|---|
-| `POST` | `/api/v1/tickets` | Create, analyze, route, and return a ticket |
-| `GET` | `/api/v1/tickets` | List persisted tickets |
-| `GET` | `/api/v1/tickets/{id}` | Return a ticket with analysis and routing evidence |
+| `GET` | `/api/v1/tickets` | List tickets, paginated and filterable (`ownerId`, `status`, `team`, `tier`, `q`) |
+| `GET` | `/api/v1/tickets/stats` | Aggregate counts across all tickets matching the filters |
+| `GET` | `/api/v1/tickets/{id}` | Return a ticket with analysis, routing evidence and conversation thread |
+| `POST` | `/api/v1/tickets` | Create, analyze and route a ticket directly (used by tests; the UI is read-only) |
 | `POST` | `/api/v1/integrations/hubspot/sync` | Import and route tickets from one HubSpot account |
+| `GET` | `/api/v1/integrations/hubspot/owners` | List HubSpot users, for operator identification |
 | `GET` | `/health` | Verify API and database health |
 
-The React dashboard creates tickets, shows the live triage queue, and renders the original report, normalized signals, recommendation, confidence mode, and deterministic reasons.
+The React dashboard is a read-only triage queue: tickets arrive from HubSpot, never from an
+intake form. It identifies the operator against the HubSpot user list, filters the queue
+(including "my tickets"), polls in the background with an audible alert for new arrivals,
+and renders the original report, conversation thread, normalized signals, recommendation,
+confidence mode and deterministic reasons. Light and dark themes are both supported.
 
 ## Product screenshot
 
@@ -102,17 +111,10 @@ Open:
 - API docs: `http://localhost:8000/docs`
 - health: `http://localhost:8000/health`
 
-Create a ticket directly:
+Tickets come from HubSpot. Trigger an import:
 
 ```bash
-curl -X POST http://localhost:8000/api/v1/tickets \
-  -H "Content-Type: application/json" \
-  -d '{
-    "title": "All customer vehicles offline",
-    "description": "Since 08:30 all 250 vehicles from our production fleet appear offline.",
-    "customerName": "Acme Mobility",
-    "source": "API"
-  }'
+curl -X POST "http://localhost:8000/api/v1/integrations/hubspot/sync?max_pages=1"
 ```
 
 The mock provider is the default and requires no model download. To develop against Laya locally, install the API's external extra and select the provider:
@@ -129,11 +131,26 @@ Laya is an external dependency (`laya==0.3.5`); its source is not copied into th
 
 Escalate can import tickets from one HubSpot account using a Private App token. HubSpot remains the source system; imported records use `source=HUBSPOT` and the HubSpot record ID as `externalId`. A database constraint on `(source, external_id)` makes repeated syncs idempotent.
 
-Create a HubSpot Private App with ticket read access, then set the token only in your local `.env`:
+Create a HubSpot Private App, then set the token only in your local `.env`:
 
 ```text
 HUBSPOT_ACCESS_TOKEN=pat-...
+HUBSPOT_PIPELINE_ID=            # restrict the import to a single ticket pipeline
 ```
+
+Scopes determine how much context Escalate can use. `crm.objects.tickets.read` is the
+minimum; without the others the corresponding fields simply stay empty:
+
+| Scope | Unlocks |
+|---|---|
+| `crm.objects.tickets.read` | The tickets themselves (required) |
+| `crm.objects.owners.read` | Owner names and the operator dropdown |
+| `crm.objects.contacts.read` | Customer email on the ticket |
+| `crm.objects.notes.read` | Notes in the conversation thread |
+| `sales-email-read` | Email bodies in the conversation thread |
+
+After changing scopes, click **Commit changes** in the Private App editor — the token keeps
+working but new scopes do not apply until committed.
 
 Run a bounded sync:
 

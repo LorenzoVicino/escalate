@@ -42,7 +42,11 @@ def test_complete_ticket_lifecycle_is_persisted_and_returned(client: TestClient)
     assert fetched.json() == result
     listing = client.get("/api/v1/tickets")
     assert listing.status_code == 200
-    assert listing.json()[0]["title"] == "All customer vehicles offline"
+    body = listing.json()
+    assert body["items"][0]["title"] == "All customer vehicles offline"
+    assert body["total"] == 1
+    assert body["page"] == 1
+    assert body["pageSize"] == 10
 
 
 def test_angry_trivial_ticket_does_not_inflate_severity(client: TestClient) -> None:
@@ -65,6 +69,52 @@ def test_security_ticket_bypasses_support_tiers(client: TestClient) -> None:
     assert result["analysis"]["securityRisk"]["value"] == 0.94
     assert result["routing"]["supportTier"] == "ENGINEERING"
     assert result["routing"]["team"] == "SECURITY"
+
+
+def test_ticket_listing_is_paginated_newest_first(client: TestClient) -> None:
+    for i in range(12):
+        create(client, f"Ticket number {i}", "Routine request needing no special handling.")
+
+    first_page = client.get("/api/v1/tickets").json()
+    assert first_page["total"] == 12
+    assert first_page["page"] == 1
+    assert first_page["pageSize"] == 10
+    assert len(first_page["items"]) == 10
+    assert first_page["items"][0]["title"] == "Ticket number 11"
+
+    second_page = client.get("/api/v1/tickets?page=2").json()
+    assert len(second_page["items"]) == 2
+    assert second_page["items"][-1]["title"] == "Ticket number 0"
+
+
+def test_stats_cover_all_tickets_not_just_the_page(client: TestClient) -> None:
+    create(client, "All customer vehicles offline", "All 250 vehicles are offline in production.")
+    for i in range(11):
+        create(client, f"Password reset {i}", "Please reset my password, I cannot login.")
+
+    stats = client.get("/api/v1/tickets/stats").json()
+    assert stats["total"] == 12
+    assert stats["open"] == 12
+    assert stats["autoRouted"] == stats["byStatus"].get("ROUTED", 0)
+    assert sum(stats["byStatus"].values()) == 12
+    # The first page only holds 10 rows, so page-local counting would have under-reported.
+    assert len(client.get("/api/v1/tickets").json()["items"]) == 10
+
+
+def test_ticket_list_and_stats_respect_filters(client: TestClient) -> None:
+    create(client, "All customer vehicles offline", "All 250 vehicles are offline in production.")
+    create(client, "Password reset please", "I cannot login, reset my password.")
+
+    by_team = client.get("/api/v1/tickets?team=PLATFORM").json()
+    assert by_team["total"] == 1
+    assert by_team["items"][0]["title"] == "All customer vehicles offline"
+
+    by_text = client.get("/api/v1/tickets?q=password").json()
+    assert by_text["total"] == 1
+    assert by_text["items"][0]["title"] == "Password reset please"
+
+    assert client.get("/api/v1/tickets/stats?team=PLATFORM").json()["total"] == 1
+    assert client.get("/api/v1/tickets?ownerId=nobody").json()["total"] == 0
 
 
 def test_validation_and_missing_ticket(client: TestClient) -> None:

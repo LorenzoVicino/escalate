@@ -21,6 +21,13 @@ class Settings(BaseSettings):
     hubspot_title_property: str = "subject"
     hubspot_description_property: str = "content"
     hubspot_customer_name_property: str = ""
+    hubspot_pipeline_id: str | None = None
+    hubspot_poll_interval_seconds: int = Field(default=300, ge=30)
+    hubspot_poll_max_pages: int = Field(default=5, ge=1, le=100)
+
+    analysis_context_max_messages: int = Field(default=8, ge=1, le=50)
+    analysis_context_max_chars_per_message: int = Field(default=600, ge=50, le=5000)
+    analysis_context_max_chars: int = Field(default=4000, ge=200, le=20000)
 
     auto_route_confidence: float = Field(default=0.90, ge=0, le=1)
     confirmation_confidence: float = Field(default=0.70, ge=0, le=1)

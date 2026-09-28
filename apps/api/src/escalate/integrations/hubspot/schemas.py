@@ -30,6 +30,15 @@ class HubSpotTicketPage(BaseModel):
         return self.paging.next.after if self.paging and self.paging.next else None
 
 
+class HubSpotOwner(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    id: str
+    email: str | None = None
+    first_name: str | None = Field(default=None, alias="firstName")
+    last_name: str | None = Field(default=None, alias="lastName")
+
+
 class HubSpotSyncResult(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 

@@ -26,6 +26,14 @@ class TicketRecord(Base):
     status: Mapped[str] = mapped_column(String(32), index=True)
     assigned_tier: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
     assigned_team: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
+    # When the ticket was raised in the source system, as opposed to when we imported it.
+    external_created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, index=True
+    )
+    owner_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    owner_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    owner_email: Mapped[str | None] = mapped_column(String(320), nullable=True)
+    contact_email: Mapped[str | None] = mapped_column(String(320), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=now_utc, onupdate=now_utc
@@ -36,6 +44,11 @@ class TicketRecord(Base):
     )
     routing_decisions: Mapped[list["RoutingDecisionRecord"]] = relationship(
         back_populates="ticket", cascade="all, delete-orphan"
+    )
+    messages: Mapped[list["TicketMessageRecord"]] = relationship(
+        back_populates="ticket",
+        cascade="all, delete-orphan",
+        order_by="TicketMessageRecord.occurred_at",
     )
 
 
@@ -67,6 +80,26 @@ class TicketAnalysisRecord(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
 
     ticket: Mapped[TicketRecord] = relationship(back_populates="analyses")
+
+
+class TicketMessageRecord(Base):
+    __tablename__ = "ticket_messages"
+    __table_args__ = (
+        UniqueConstraint("ticket_id", "external_id", name="uq_ticket_messages_ticket_external_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    ticket_id: Mapped[str] = mapped_column(ForeignKey("tickets.id"), index=True)
+    external_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    channel: Mapped[str] = mapped_column(String(32))
+    direction: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    author: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    subject: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    body: Mapped[str] = mapped_column(Text)
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+    ticket: Mapped[TicketRecord] = relationship(back_populates="messages")
 
 
 class RoutingDecisionRecord(Base):

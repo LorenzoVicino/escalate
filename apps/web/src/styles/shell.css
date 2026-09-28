@@ -1,0 +1,155 @@
+.app-shell { min-height: 100vh; display: flex; }
+
+.sidebar {
+  width: 248px;
+  position: fixed;
+  inset: 0 auto 0 0;
+  background: var(--nav-bg);
+  color: var(--nav-text);
+  padding: var(--space-6) var(--space-5) var(--space-5);
+  display: flex;
+  flex-direction: column;
+  z-index: var(--z-sidebar);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 0 var(--space-2) var(--space-6);
+  border-bottom: 1px solid var(--nav-border);
+}
+.brand-mark {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  background: var(--brand);
+  color: var(--text-on-brand);
+  border-radius: 7px;
+  flex-shrink: 0;
+}
+.brand strong { display: block; font-size: 14px; letter-spacing: 0.16em; }
+.brand small {
+  display: block;
+  color: var(--nav-faint);
+  font: 500 var(--text-2xs) var(--font-mono);
+  margin-top: var(--space-1);
+  letter-spacing: 0.08em;
+}
+
+nav { padding-top: var(--space-6); }
+.nav-item {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--nav-muted);
+  padding: var(--space-3);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  font-size: var(--text-base);
+  text-align: left;
+  margin-bottom: var(--space-1);
+  transition: background var(--dur-fast), color var(--dur-fast);
+}
+.nav-item:hover { color: var(--nav-text); background: var(--nav-surface); }
+.nav-item span {
+  margin-left: auto;
+  background: var(--nav-chip);
+  color: var(--nav-text);
+  font: 500 var(--text-xs) var(--font-mono);
+  border-radius: var(--radius-full);
+  padding: 2px 7px;
+}
+.nav-item span.alert { background: var(--brand); color: var(--text-on-brand); }
+.nav-item.active { background: var(--nav-surface); color: var(--gray-0); }
+.nav-item.active svg { color: var(--brand); }
+
+.sidebar-bottom { margin-top: auto; display: flex; flex-direction: column; gap: var(--space-2); }
+.system-status {
+  margin: 0 7px var(--space-4);
+  padding: var(--space-3) 0 var(--space-4);
+  border-bottom: 1px solid var(--nav-border);
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+}
+.pulse {
+  width: 8px;
+  height: 8px;
+  background: #4cd588;
+  box-shadow: 0 0 0 4px #224737;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.pulse.offline { background: var(--red-500); box-shadow: 0 0 0 4px #43201a; }
+.system-status strong, .operator strong { display: block; font-size: var(--text-sm); }
+.system-status small, .operator small { color: var(--nav-faint); font-size: var(--text-2xs); }
+
+.operator {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  padding: var(--space-4) var(--space-2) 0;
+  border-top: 1px solid var(--nav-border);
+  margin-top: var(--space-3);
+  width: 100%;
+  border-left: 0;
+  border-right: 0;
+  border-bottom: 0;
+  background: transparent;
+  color: var(--nav-text);
+  text-align: left;
+}
+.operator:hover { color: var(--gray-0); }
+.operator > span {
+  width: 31px;
+  height: 31px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--nav-chip);
+  color: var(--gray-0);
+  font: 500 var(--text-xs) var(--font-mono);
+  flex-shrink: 0;
+}
+
+.workspace { margin-left: 248px; width: calc(100% - 248px); min-height: 100vh; }
+.topbar {
+  height: 72px;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: 0 var(--space-8);
+  font-size: var(--text-base);
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
+}
+.topbar-actions { display: flex; align-items: center; gap: var(--space-3); }
+.crumb { color: var(--text-faint); }
+.content { max-width: 1260px; margin: 0 auto; padding: var(--space-8); }
+
+@media (max-width: 900px) {
+  .sidebar { width: 72px; padding-inline: var(--space-3); }
+  .brand { padding-inline: var(--space-2); }
+  .brand div, .nav-item:not(.active), .nav-item { font-size: 0; gap: 0; justify-content: center; }
+  .nav-item svg { width: 20px; height: 20px; }
+  .nav-item span { display: none; }
+  .system-status div, .operator div { display: none; }
+  .system-status, .operator { justify-content: center; margin-inline: 0; padding-inline: 0; }
+  .workspace { margin-left: 72px; width: calc(100% - 72px); }
+}
+
+@media (max-width: 650px) {
+  .sidebar { display: none; }
+  .workspace { margin-left: 0; width: 100%; }
+  .topbar { padding: 0 var(--space-5); }
+  .content { padding: var(--space-7) var(--space-5); }
+}
